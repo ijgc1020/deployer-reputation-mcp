@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "deployer-reputation": {
+      "command": "python",
+      "args": [
+        "{{INSTALL_DIR}}/deployer_reputation_mcp.py"
+      ]
+    }
+  }
+}
