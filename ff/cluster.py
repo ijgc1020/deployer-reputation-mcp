@@ -309,7 +309,9 @@ def score_cluster(c: Cluster) -> ReputationScore:
 def cluster_by_funder(edges: Iterable[DeployEdge]) -> list[Cluster]:
     """Collapse edges into shared-funder operator clusters (union-find).
 
-    Two launches land in the same cluster iff their deployer/funder graphs are
+    Known exchange funders never connect deployers; any CEX flag excludes that
+    funder across the entire batch. Groups are associations, not identity proof.
+    Two launches otherwise land in the same cluster iff their graphs are
     connected -- i.e. they share a funder, OR are linked through a chain of
     shared funders (funder A funds deployers X,Y; a later edge funds Y from
     funder B => A,B,X,Y are one operator). Deployer and funder namespaces are
@@ -318,11 +320,13 @@ def cluster_by_funder(edges: Iterable[DeployEdge]) -> list[Cluster]:
     """
     uf = _UnionFind()
     edges = list(edges)
+    cex_funders = {e.funder for e in edges if e.funder_is_cex}
     for e in edges:
         d, f = f"D:{e.deployer}", f"F:{e.funder}"
         uf.add(d)
         uf.add(f)
-        uf.union(d, f)
+        if e.funder not in cex_funders:
+            uf.union(d, f)
 
     buckets: dict[str, list[DeployEdge]] = {}
     for e in edges:

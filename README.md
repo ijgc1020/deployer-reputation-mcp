@@ -1,85 +1,87 @@
-# Deployer Reputation -- MCP server
+# Deployer Reputation: supplied-edge heuristic
 
-Scores a Solana deployer cluster for serial-rugger risk from that deployer's launches
-and the funding wallet behind each one.
+Scores and groups **caller-supplied launch records**. No Solana RPC fetch, wallet lookup,
+verified ownership attribution, fraud finding, calibrated probability, or investment recommendation.
+Shared non-exchange funding creates an association, not proof of a common operator.
+Known exchange funders never join distinct deployers, even when only one record flags that funder.
+The same deployer's launches can still group together. Caller labels are trusted as input, not verified.
 
-Rotating a fresh deployer wallet per launch defeats per-token and per-deployer
-reputation by design. The funding wallet is stickier, so collapsing shared-funder
-groups re-attaches the rotated deployers to one operator -- which is what makes a
-reputation possible at all.
+## Input and result
 
-## Install
-
-Nothing to install. The server uses only the Python standard library, and the `ff`
-package it wraps ships in this repository.
-
-## Run it (stdio)
-
-```bash
-python deployer_reputation_mcp.py
-```
-
-## Add it to an MCP client
+All transports use the same validation and scorer. Submit an object containing `edges`:
 
 ```json
-{
-  "mcpServers": {
-    "deployer-reputation": {
-      "command": "python",
-      "args": ["/absolute/path/to/deployer_reputation_mcp.py"]
-    }
-  }
-}
+{"edges":[{"deployer":"wallet-A","funder":"wallet-B","mint":"unique-mint-A","outcome":"rugged","funder_is_cex":false}]}
 ```
 
-## Tools
+Identifiers are required nonempty opaque strings, max 128 characters, without whitespace/control
+characters or Unicode surrogates. They are not checked as Solana addresses. Supply **one record per distinct mint**;
+missing, duplicate and conflicting mints are rejected. Batches contain 1–1000 edges.
+Unknown fields are rejected. Optional fields:
 
-### `deployer_reputation`
+- `outcome`: `rugged` (mapped to `rug`), `rug`, `alive`, `graduated`, `unknown` (default).
+- `funder_is_cex`: strict boolean, default false. Mark exchange/infra funders accurately.
+- `lamports`: nonnegative integer up to 18446744073709551615; default 0.
+- `block_time`: nonnegative Unix integer up to 253402300799, or null.
 
-Input `edges[]` -- one entry per launch:
+Scoring returns clusters, heuristic scores 0–1, bands, components, and raw launch/label counts.
+Grouping returns associated deployers/funders/mints and launch counts. Structural components may
+raise scores without outcome labels. The inherited CEX component is a heuristic, not evidence
+of misconduct. Research AUC, lift and p-values from separate studies **do not validate this scorer**.
+No performance or profitability claim is made. Launch timestamps currently do not affect scoring;
+the component called cadence measures launch count, not elapsed time.
 
-| field | meaning |
-|---|---|
-| `deployer` | the wallet that created the token |
-| `funder` | the wallet that paid the create fee |
-| `mint` | token mint address (optional) |
-| `block_time` | unix seconds of the create (optional) |
-| `lamports` | lamports transferred to the deployer (optional) |
-| `outcome` | `rugged` / `alive` / `graduated` / `unknown` (optional) |
-| `funder_is_cex` | true when the funder is an exchange hot wallet -- not an attribution (optional) |
+## MCP stdio
 
-Returns clusters ranked by risk: `{cluster_id, score, band, deployers, funders, mints,
-components{serial,cadence,fanout,cex,rugs}, evidence, n_launches}`.
+Python standard library only; HTTP/Actor dependencies are unnecessary for stdio:
 
-The score alone is not the product. The components and the raw counts behind them are
-returned so a caller can audit the number instead of trusting it.
-
-### `cluster_launches`
-
-Same input, grouping only -- no score. Use it to de-duplicate a wallet graph so one
-operator's wallets do not count as independent participants.
-
-## Honest limits
-
-* This is a **risk filter, not standalone alpha.** Use it to *exclude* a high-rug cohort
-  from a long sleeve. It does not select winners by itself.
-* On reachable data the shared-funder mechanism contributed ~nothing (13 of 120 funders
-  traceable, 2 shared). The dominant live signal is the deployer's own prior record.
-* Unconditional AUC on the true firehose population is **0.492 -- no edge.** The 0.667
-  figure is *conditional* on the deployer having any track record.
-* The elite tail is real but tiny: ~0.7-2 qualifying launches/day across all of pump.fun.
-* The server scores edges you supply. It does not fetch from Solana and does not label
-  outcomes.
-
-## Provenance of the published study numbers
-
-The separation statistics (conditional OOS AUC 0.667, elite-tail 27x lift, FADE
-p=0.0052) come from a survivorship-clean, no-lookahead, permutation-tested study in
-`solana-edge-hunt/edge2_deployer/`. They are properties of that study, **not** output of
-a tool call, and the server does not return them as if they were.
-
-## Tests
-
-```bash
+```sh
+python deployer_reputation_mcp.py
 python deployer_reputation_mcp.py --selftest
 ```
+
+Tools: `deployer_reputation` and `cluster_launches`. Newline-delimited JSON-RPC objects;
+512000-byte maximum line. No JSON-RPC batches. Malformed messages return errors and the process
+continues. Notifications have no response. Advertised protocol: 2024-11-05.
+`mcp-client-config.json` contains the client registration example; replace its absolute path.
+
+## HTTP deployment
+
+```sh
+pip install -r requirements.txt
+# Set REPUTATION_API_KEY to a securely generated value of at least 32 characters.
+uvicorn api:app --host 127.0.0.1 --port 8080 --workers 1 --limit-concurrency 16 --timeout-keep-alive 5
+```
+
+`GET /health` is public. `POST /score` and `/cluster` require `X-API-Key`.
+Missing/trivial server key prevents startup. Actual streamed body size is limited to 512000 bytes;
+edge count is independently limited. Invalid auth/JSON/input/body size return 401/400/422/413.
+Use TLS at a reverse proxy before public exposure; retain request-header/body timeouts and a rate limit
+there. Bind Docker's port to loopback behind that proxy, e.g. `-p 127.0.0.1:8080:8080`.
+Dockerfile runs as an unprivileged user, one worker, 16 concurrent connections.
+The app does not store submitted edges or log request bodies. Infrastructure operators can still
+observe requests; avoid secrets in edge metadata. No billing, customer account system, API-key
+issuance, or monetization is implemented. Deployment status is external to this package.
+
+## Apify Actor packaging
+
+`.actor/actor.json`, `Dockerfile.actor`, and `actor.py` package the same scorer.
+Input adds optional `operation`: `score` (default) or `cluster`.
+Successful result is written to key-value `OUTPUT` and the default dataset (one result row).
+Invalid batches fail the run before any result is persisted. No chain requests are made.
+Apify stores submitted input/output: account/platform access and retention rules apply.
+Pricing, publication and billing must be configured separately in the platform; none is claimed here.
+The wrapper passed actual local Apify SDK 3.4.1 runs (score x3, cluster x1); invalid Unicode
+input failed before persistence. The output schema links OUTPUT and the dataset, with an overview
+dataset view. An actual platform build/run must still pass before publication.
+
+## Validation
+
+```sh
+pip install httpx
+python -m unittest -v test_service
+```
+
+Regression tests cover rug mapping, mint accounting, exchange separation, type/range limits,
+stdio recovery, notification silence, API authentication/body limits, and Actor scorer parity.
+These tests establish software behavior, not predictive validity.

@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "deployer-reputation-heuristic",
+  "title": "Deployer Reputation — Supplied-edge Heuristic",
+  "description": "Explainable scoring and association clustering for caller-supplied token launches. No chain fetch or verified identity attribution.",
+  "version": "1.1",
+  "dockerfile": "../Dockerfile.actor",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "storages": {"dataset": "./dataset_schema.json"}
+}

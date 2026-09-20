@@ -1,1 +1,2 @@
-# no runtime dependencies beyond the Python standard library
+fastapi==0.141.1
+uvicorn>=0.30,<1

@@ -1,0 +1,18 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Supplied-edge heuristic result",
+  "properties": {
+    "result": {
+      "type": "string",
+      "title": "Complete result",
+      "description": "Cluster associations and optional heuristic scores based only on supplied launch records.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/OUTPUT"
+    },
+    "dataset": {
+      "type": "string",
+      "title": "Result dataset",
+      "description": "One result object per successful run; nested clusters include auditable counts.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}

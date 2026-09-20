@@ -1,30 +1,4 @@
-"""Deployer Reputation -- an MCP server over stdio, listing-ready.
-
-Wraps the TESTED asset: fleet-build/funder-fingerprint/ff/cluster.py (52/52 tests).
-The server adds no modelling of its own -- it exposes what the tested module computes,
-so the listing's claims and the code cannot drift apart.
-
-Transport: MCP stdio -- newline-delimited JSON-RPC 2.0 on stdin/stdout.
-Methods:   initialize, notifications/initialized, tools/list, tools/call, ping.
-Zero third-party dependencies: json + sys + the local ff package.
-
-What the numbers in the listing mean, stated exactly:
-  - 52/52 tests        tests/ in fleet-build/funder-fingerprint (pytest, no network)
-  - sub-50ms           the ff.cluster scoring path is pure list/dict arithmetic on
-                       already-fetched edges. The RPC FETCH is not sub-50ms; the
-                       on-chain acquisition is the slow part and is NOT in this server.
-  - OOS AUC 0.667      conditional-on-repeat-deployer separation, survivorship-clean,
-                       firehose N=1,338,180 -- from solana-edge-hunt/edge2_deployer
-  - elite-tail lift 27x  walk-forward OOS 17.5% graduation vs 0.642% base, N=57,
-                       Wilson-LB 9.8%
-  - p=0.005 (0.0052)   the FADE arm's flagged-vs-clean death separation
-This server returns cluster/score output. It does NOT return those study statistics;
-they are published performance claims, and mixing them into a per-call response would
-be the exact dishonesty this estate's rules forbid.
-
-Run:  python deployer_reputation_mcp.py          (stdio; an MCP client drives it)
-Test: python deployer_reputation_mcp.py --selftest
-"""
+"""Bounded supplied-edge heuristic exposed over MCP stdio."""
 from __future__ import annotations
 
 import json
@@ -34,90 +8,30 @@ from pathlib import Path
 FF_ROOT = Path(__file__).resolve().parent   # ff/ ships in this repo
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "deployer-reputation"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
+
+from validation import input_schema, parse_edges, MAX_BODY_BYTES
 
 TOOLS = [
-    {
-        "name": "deployer_reputation",
-        "description": (
-            "Score a Solana deployer cluster for serial-rugger risk. Input is the "
-            "deployer's launches with the funding wallet of each: shared-funder "
-            "clustering collapses rotated throwaway deployers onto one operator, then "
-            "the cluster is scored 0..1 (higher = more serial-rugger-like) with "
-            "explainable components and a low/elevated/high band. Returns the cluster, "
-            "the score, why it scored that way, and the raw counts behind each component."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "edges": {
-                    "type": "array",
-                    "description": "One entry per launch. deployer = the wallet that created the token; funder = the wallet that paid the create fee.",
-                    "items": {
-                        "type": "object",
-                        "required": ["deployer", "funder"],
-                        "properties": {
-                            "deployer": {"type": "string", "description": "Solana base58 deployer address"},
-                            "funder": {"type": "string", "description": "Solana base58 wallet that funded the deployer's create"},
-                            "mint": {"type": "string", "description": "Token mint address"},
-                            "block_time": {"type": "integer", "description": "Unix seconds of the create"},
-                            "lamports": {"type": "integer", "description": "SOL lamports transferred to the deployer"},
-                            "outcome": {"type": "string", "enum": ["rugged", "alive", "graduated", "unknown"], "description": "Known outcome for this launch, if any"},
-                            "funder_is_cex": {"type": "boolean", "description": "True when the funder is a known exchange hot wallet -- these are NOT operator attributions"},
-                        },
-                    },
-                },
-            },
-            "required": ["edges"],
-        },
-    },
-    {
-        "name": "cluster_launches",
-        "description": (
-            "Group launches into operator clusters by shared funding wallet, without "
-            "scoring. Use this when you want the grouping only -- for example to "
-            "de-duplicate a copier/buyer graph so one operator's wallets do not count "
-            "as independent participants."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {"edges": {"type": "array", "items": {"type": "object"}}},
-            "required": ["edges"],
-        },
-    },
+    {"name": "deployer_reputation", "description": "Explainable heuristic score of supplied launch edges; not a probability or verified operator identity.", "inputSchema": input_schema()},
+    {"name": "cluster_launches", "description": "Group supplied launches by non-exchange funding associations; not proof of common ownership.", "inputSchema": input_schema()},
 ]
 
 
 # ------------------------------------------------------------------------ core
 def _ff():
-    """Import the tested module. It must come from the fleet-build tree, not a copy."""
+    """Import the tested module. The bundled scoring module is used by every transport."""
     if str(FF_ROOT) not in sys.path:
         sys.path.insert(0, str(FF_ROOT))
     from ff import cluster  # noqa: E402
     return cluster
 
 
-def _edges(raw: list) -> list:
-    ff = _ff()
-    return [
-        ff.DeployEdge(
-            deployer=str(e["deployer"]),
-            funder=str(e["funder"]),
-            mint=str(e.get("mint", "")),
-            block_time=e.get("block_time"),
-            lamports=int(e.get("lamports", 0)),
-            outcome=str(e.get("outcome", "unknown")),
-            funder_is_cex=bool(e.get("funder_is_cex", False)),
-        )
-        for e in raw
-    ]
 
 
 def tool_deployer_reputation(args: dict) -> dict:
-    import dataclasses
-
     ff = _ff()
-    clusters = ff.cluster_by_funder(_edges(args.get("edges", [])))
+    clusters = ff.cluster_by_funder(parse_edges(args))
     out = []
     for c in clusters:
         s = ff.score_cluster(c)
@@ -141,18 +55,16 @@ def tool_deployer_reputation(args: dict) -> dict:
         "n_edges": len(args.get("edges", [])),
         "model": "ff.cluster serial-deployer reputation (Wilson-LB blended, weights sum to 1.0)",
         "caveat": (
-            "Structural components fire without outcome labels, so a fresh cluster still "
-            "gets a risk read from shape alone. On reachable data the shared-funder "
-            "mechanism contributed ~nothing (13/120 funders traceable to 2 shared) -- the "
-            "dominant live signal is the deployer's own prior record. Treat this as a "
-            "risk filter to EXCLUDE from a long sleeve, not as standalone alpha."
+            "Supplied-edge heuristic only: scores are not calibrated probabilities. "
+            "No chain lookup or verified ownership attribution. Labels are caller supplied. "
+            "Separate research AUC does not validate this scorer."
         ),
     }
 
 
 def tool_cluster_launches(args: dict) -> dict:
     ff = _ff()
-    clusters = ff.cluster_by_funder(_edges(args.get("edges", [])))
+    clusters = ff.cluster_by_funder(parse_edges(args))
     return {
         "clusters": [
             {"cluster_id": c.cluster_id, "deployers": c.deployers, "funders": c.funders,
@@ -177,47 +89,66 @@ def _reply(msg_id, result=None, error=None) -> None:
     sys.stdout.flush()
 
 
-def handle(msg: dict) -> None:
-    method = msg.get("method")
-    mid = msg.get("id")
+def _tool_call(mid, params):
+    name = params.get("name")
+    if not isinstance(name, str) or name not in HANDLERS:
+        _reply(mid, error={"code": -32602, "message": "Unknown tool"})
+        return
+    try:
+        payload = HANDLERS[name](params.get("arguments"))
+        _reply(mid, {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False})
+    except ValueError as exc:
+        _reply(mid, {"content": [{"type": "text", "text": str(exc)}], "isError": True})
+
+
+def handle(msg):
+    """Handle one JSON-RPC object; arrays and invalid envelopes never kill stdio."""
+    if not isinstance(msg, dict):
+        _reply(None, error={"code": -32600, "message": "Expected JSON-RPC object"})
+        return
+    valid_id = "id" not in msg or msg["id"] is None or type(msg["id"]) in (str, int)
+    if msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str) or not valid_id:
+        _reply(None, error={"code": -32600, "message": "Invalid JSON-RPC request"})
+        return
+    if "id" not in msg:
+        return
+    mid, method, params = msg["id"], msg["method"], msg.get("params", {})
+    if not isinstance(params, dict):
+        _reply(mid, error={"code": -32602, "message": "params must be an object"})
+        return
     if method == "initialize":
-        _reply(mid, {
-            "protocolVersion": PROTOCOL_VERSION,
-            "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-        })
-    elif method in ("notifications/initialized", "initialized"):
-        return                                   # notification: no reply, ever
+        _reply(mid, {"protocolVersion": PROTOCOL_VERSION,
+                     "capabilities": {"tools": {"listChanged": False}},
+                     "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION}})
     elif method == "tools/list":
         _reply(mid, {"tools": TOOLS})
     elif method == "tools/call":
-        params = msg.get("params") or {}
-        name = params.get("name")
-        fn = HANDLERS.get(name)
-        if fn is None:
-            _reply(mid, error={"code": -32602, "message": f"unknown tool: {name}"})
-            return
-        try:
-            payload = fn(params.get("arguments") or {})
-            _reply(mid, {"content": [{"type": "text", "text": json.dumps(payload, indent=1)}], "isError": False})
-        except Exception as exc:                  # a tool error is a result, not a transport error
-            _reply(mid, {"content": [{"type": "text", "text": f"{type(exc).__name__}: {exc}"}], "isError": True})
+        _tool_call(mid, params)
     elif method == "ping":
         _reply(mid, {})
-    elif mid is not None:
-        _reply(mid, error={"code": -32601, "message": f"method not found: {method}"})
+    else:
+        _reply(mid, error={"code": -32601, "message": "Method not found"})
 
 
-def serve() -> int:
-    for line in sys.stdin:
-        line = line.strip()
+def serve():
+    """Consume bounded newline-delimited JSON, recovering after malformed input."""
+    stream = sys.stdin.buffer
+    while True:
+        line = stream.readline(MAX_BODY_BYTES + 1)
         if not line:
+            return 0
+        if len(line) > MAX_BODY_BYTES:
+            while line and not line.endswith(b"\n"):
+                line = stream.readline(MAX_BODY_BYTES + 1)
+            _reply(None, error={"code": -32600, "message": "Request too large"})
+            continue
+        if not line.strip():
             continue
         try:
-            handle(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    return 0
+            msg = json.loads(line)
+            handle(msg)
+        except (ValueError, UnicodeError, RecursionError):
+            _reply(None, error={"code": -32700, "message": "Invalid JSON"})
 
 
 # --------------------------------------------------------------------- selftest
@@ -247,8 +178,7 @@ def selftest() -> int:
     assert result["n_clusters"] == 3, result["n_clusters"]
     assert top["score"] > result["clusters"][-1]["score"], "serial cluster must outscore clean ones"
     print("\nSELFTEST PASS -- clustering separates the 6-launch serial cluster from the clean pairs.")
-    print("NOT claimed here: the OOS AUC / 27x-lift / p=0.005 study numbers. Those are published")
-    print("performance claims about a firehose sample; this process returns per-call cluster scores.")
+    print("Supplied-edge heuristic; separate research does not validate this scorer.")
     return 0
 
 

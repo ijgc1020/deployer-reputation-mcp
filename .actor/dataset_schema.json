@@ -1,0 +1,21 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "type": "object",
+    "required": ["clusters", "n_clusters"],
+    "properties": {
+      "clusters": {"type": "array", "items": {"type": "object"}},
+      "n_clusters": {"type": "integer", "minimum": 0},
+      "n_edges": {"type": "integer", "minimum": 0},
+      "model": {"type": "string"},
+      "caveat": {"type": "string"}
+    }
+  },
+  "views": {
+    "overview": {
+      "title": "Result overview",
+      "transformation": {"fields": ["n_clusters", "n_edges", "clusters", "caveat"]},
+      "display": {"component": "table"}
+    }
+  }
+}
