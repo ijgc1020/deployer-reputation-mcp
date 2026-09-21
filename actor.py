@@ -20,11 +20,10 @@ def run_input(data):
 
 
 async def main():
-    """Persist result only after the full batch passes validation."""
+    """Publish validated results only through the platform-metered dataset."""
     from apify import Actor
     async with Actor:
         result = run_input(await Actor.get_input())
-        await Actor.set_value('OUTPUT', result)
         await Actor.push_data(result)
 
 

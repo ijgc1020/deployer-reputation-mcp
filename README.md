@@ -67,19 +67,25 @@ issuance, or monetization is implemented. Deployment status is external to this 
 
 `.actor/actor.json`, `Dockerfile.actor`, and `actor.py` package the same scorer.
 Input adds optional `operation`: `score` (default) or `cluster`.
-Successful result is written to key-value `OUTPUT` and the default dataset (one result row).
+The default dataset is the sole result destination: one object per delivered batch, regardless
+of its cluster count. No result is copied into a key-value record. Read the dataset to determine
+whether a result was delivered; a successful process exit alone does not prove delivery or payment.
 Invalid batches fail the run before any result is persisted. No chain requests are made.
 Apify stores submitted input/output: account/platform access and retention rules apply.
-Pricing, publication and billing must be configured separately in the platform; none is claimed here.
-The wrapper passed actual local Apify SDK 3.4.1 runs (score x3, cluster x1); invalid Unicode
-input failed before persistence. The output schema links OUTPUT and the dataset, with an overview
-dataset view. An actual platform build/run must still pass before publication.
+Platform pricing is configured separately from this source. The saved private Actor configuration
+on 2026-09-21 charges $0.005 per analysis result through the synthetic
+`apify-default-dataset-item` event, with no start or custom event. Its minimum run charge cap is
+$0.00501. Confirm current pricing in Apify before running; use an explicit `maxTotalChargeUsd`
+cap (for example 0.01). Do not add a custom charge for the same result.
+This local dataset-only change requires a new build and billing validation before publication.
+Prior owner functional tests do not establish customer payment, settled revenue, or billing
+behavior for this change. The output schema links only the dataset, with an overview view.
 
 ## Validation
 
 ```sh
 pip install httpx
-python -m unittest -v test_service
+python -m unittest discover -v
 ```
 
 Regression tests cover rug mapping, mint accounting, exchange separation, type/range limits,
