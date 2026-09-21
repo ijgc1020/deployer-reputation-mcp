@@ -1,6 +1,6 @@
 # Local reputation scorer audit fixes
 
-Status: source-only; independent QA PASSED (fleet audit 2026-09-21 handoff report); cloud deployment pending. Live baseline remains build 1.1.5.
+Status: independent QA PASSED (fleet audit 2026-09-21 handoff report); DEPLOYED as build 1.1.6 on 2026-09-21 with cloud validation.
 
 Modified: ff/cluster.py, deployer_reputation_mcp.py, README.md.
 Added: test_scorer_policy.py, CHANGE-REPORT.md.

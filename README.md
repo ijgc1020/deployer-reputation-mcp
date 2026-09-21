@@ -77,9 +77,9 @@ on 2026-09-21 charges $0.005 per analysis result through the synthetic
 `apify-default-dataset-item` event, with no start or custom event. Its minimum run charge cap is
 $0.00501. Confirm current pricing in Apify before running; use an explicit `maxTotalChargeUsd`
 cap (for example 0.01). Do not add a custom charge for the same result.
-Build 1.1.5 is the deployed baseline. Local scorer 2.0.0 changes below passed
+Scorer 2.0.0 is deployed as build 1.1.6 (2026-09-21), superseding baseline 1.1.5. It passed
 independent QA (22 tests three times, old-code negative controls, 200-batch numeric parity)
-and remain undeployed. Owner tests do not establish external customer payment
+and cloud validation. Owner tests do not establish external customer payment
 or settled revenue. The output schema links only the dataset, with an overview view.
 
 ## Validation
@@ -104,7 +104,29 @@ python scripts/verify_all.py          # unit suites plus demo kit, exits non-zer
 `examples/demo_edges.json` bundles three scenarios with expected outputs; `examples/apify_input/`
 holds paste-ready fictional Actor inputs. All fictional, offline, no RPC or spending.
 
-## Local scorer 2.0.0 migration (pending deployment)
+## Use as an integration (dataset input)
+
+Supply edges by dataset reference instead of inline JSON: set `datasetId`, or trigger this Actor
+from another Actor's **Integrations** tab — the platform supplies `payload.resource.defaultDatasetId`
+automatically. Only Apify platform datasets are fetched (alphanumeric IDs, batched reads), never
+arbitrary URLs or caller credentials. Upstream launch-tracker/scraper Actors produce the
+deployer/funder/mint rows; this Actor clusters and scores them. Inline `edges` always win over a
+dataset reference. Example static input for the integration form:
+
+```json
+{"datasetId": "{{resource.defaultDatasetId}}", "operation": "score"}
+```
+
+## Cost math (published pricing)
+
+Flat $0.005 per completed analysis batch (up to 1,000 edges), charged through the platform's
+synthetic `apify-default-dataset-item` event; invalid batches fail before any result and are not
+charged. That is $0.005 for one launch or for a thousand — $0.000005 per launch at full batch,
+against $0.0005–0.02 per single token for Store scanners that fetch chain data themselves.
+Minimum run charge cap is $0.00501. Prices are configured in the Apify Console and may change
+there; check the Store page for the current values.
+
+## Scorer 2.0.0 migration (deployed as build 1.1.6)
 
 IDs now use `CL2-` plus full SHA-256 of the canonical JSON array of sorted unique
 role-prefixed deployer/funder identifiers (`ensure_ascii=True`, compact separators).

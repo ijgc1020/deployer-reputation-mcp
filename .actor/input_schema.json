@@ -1,9 +1,7 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "edges"
-  ],
+  "required": [],
   "properties": {
     "edges": {
       "type": "array",
@@ -14,7 +12,7 @@
       },
       "title": "Launch edges",
       "editor": "json",
-      "description": "One record per distinct mint; deployer, funder and mint are required. Runtime validates strict field types, limits and Unicode. Sample uses fictional opaque identifiers.",
+      "description": "One record per distinct mint; deployer, funder and mint are required. Runtime validates strict field types, limits and Unicode. Sample uses fictional opaque identifiers. Required unless a dataset reference is supplied.",
       "prefill": [
         {
           "deployer": "ExampleDeployer",
@@ -34,6 +32,18 @@
       ],
       "default": "score",
       "description": "Choose heuristic scoring or association grouping."
+    },
+    "datasetId": {
+      "title": "Dataset ID (integration)",
+      "type": "string",
+      "description": "Optional. Apify dataset ID whose items are the launch edges - supplied automatically when this Actor runs as an integration target (payload.resource.defaultDatasetId).",
+      "editor": "textfield"
+    },
+    "payload": {
+      "title": "Integration payload (implicit)",
+      "type": "object",
+      "description": "Attached automatically by the platform when another Actor triggers this one as an integration; resource.defaultDatasetId is read for edges. Do not set manually.",
+      "editor": "hidden"
     }
   },
   "title": "Supplied launch edges",

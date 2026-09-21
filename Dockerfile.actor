@@ -3,5 +3,5 @@ WORKDIR /app
 COPY requirements-actor.txt .
 RUN pip install --no-cache-dir -r requirements-actor.txt
 COPY ff ./ff
-COPY validation.py deployer_reputation_mcp.py actor.py ./
+COPY validation.py deployer_reputation_mcp.py dataset_input.py actor.py ./
 CMD ["python", "actor.py"]
