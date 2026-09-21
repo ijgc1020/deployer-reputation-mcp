@@ -72,14 +72,15 @@ of its cluster count. No result is copied into a key-value record. Read the data
 whether a result was delivered; a successful process exit alone does not prove delivery or payment.
 Invalid batches fail the run before any result is persisted. No chain requests are made.
 Apify stores submitted input/output: account/platform access and retention rules apply.
-Platform pricing is configured separately from this source. The saved private Actor configuration
+Platform pricing is configured separately from this source. The live Actor build 1.1.5 configuration
 on 2026-09-21 charges $0.005 per analysis result through the synthetic
 `apify-default-dataset-item` event, with no start or custom event. Its minimum run charge cap is
 $0.00501. Confirm current pricing in Apify before running; use an explicit `maxTotalChargeUsd`
 cap (for example 0.01). Do not add a custom charge for the same result.
-This local dataset-only change requires a new build and billing validation before publication.
-Prior owner functional tests do not establish customer payment, settled revenue, or billing
-behavior for this change. The output schema links only the dataset, with an overview view.
+Build 1.1.5 is the deployed baseline. Local scorer 2.0.0 changes below passed
+independent QA (22 tests three times, old-code negative controls, 200-batch numeric parity)
+and remain undeployed. Owner tests do not establish external customer payment
+or settled revenue. The output schema links only the dataset, with an overview view.
 
 ## Validation
 
@@ -91,3 +92,31 @@ python -m unittest discover -v
 Regression tests cover rug mapping, mint accounting, exchange separation, type/range limits,
 stdio recovery, notification silence, API authentication/body limits, and Actor scorer parity.
 These tests establish software behavior, not predictive validity.
+
+
+## Offline demo and verification
+
+```sh
+python scripts/demo_reputation.py     # golden evaluation kit: serial rugger vs clean vs shared-CEX
+python scripts/verify_all.py          # unit suites plus demo kit, exits non-zero on failure
+```
+
+`examples/demo_edges.json` bundles three scenarios with expected outputs; `examples/apify_input/`
+holds paste-ready fictional Actor inputs. All fictional, offline, no RPC or spending.
+
+## Local scorer 2.0.0 migration (pending deployment)
+
+IDs now use `CL2-` plus full SHA-256 of the canonical JSON array of sorted unique
+role-prefixed deployer/funder identifiers (`ensure_ascii=True`, compact separators).
+This replaces ambiguous delimiter serialization and 32-bit `CL-` IDs. Recompute
+stored IDs from original membership; old IDs cannot be converted reliably.
+IDs describe supplied membership, not persistent operator identity: adding/removing a
+funder or deployer changes the ID; changing only mint/outcome data does not.
+
+Numeric weights and score calculation remain unchanged. High additionally requires
+at least one positive supplied rug label; otherwise high numeric scores remain elevated.
+Bands are policy labels, not calibrated probabilities. Global CEX classification now
+applies consistently to evidence and components, which can change scores for conflicting
+CEX flags. Caller input remains unchanged. `evidence.labelCoverage` is labeled launches
+/ launches; notes flag absent or incomplete outcomes. Low does not mean safe.
+Score results include `scorerVersion`; both operations include `clusterIdVersion`.

@@ -1,0 +1,18 @@
+{
+  "serial_rugger": [
+    {"deployer": "Dep1", "funder": "FunderA", "mint": "Mint1", "outcome": "rugged"},
+    {"deployer": "Dep2", "funder": "FunderA", "mint": "Mint2", "outcome": "rugged"},
+    {"deployer": "Dep3", "funder": "FunderA", "mint": "Mint3", "outcome": "rugged"},
+    {"deployer": "Dep4", "funder": "FunderA", "mint": "Mint4", "outcome": "rugged"},
+    {"deployer": "Dep5", "funder": "FunderA", "mint": "Mint5", "outcome": "rugged"},
+    {"deployer": "Dep6", "funder": "FunderA", "mint": "Mint6", "outcome": "rugged"}
+  ],
+  "clean_independents": [
+    {"deployer": "Clean1", "funder": "FunderB", "mint": "MintC1", "outcome": "alive"},
+    {"deployer": "Clean2", "funder": "FunderC", "mint": "MintC2", "outcome": "graduated"}
+  ],
+  "shared_cex_funder": [
+    {"deployer": "Solo1", "funder": "ExchangeHotWallet", "mint": "MintS1", "outcome": "alive", "funder_is_cex": true},
+    {"deployer": "Solo2", "funder": "ExchangeHotWallet", "mint": "MintS2", "outcome": "unknown", "funder_is_cex": true}
+  ]
+}

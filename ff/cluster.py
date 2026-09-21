@@ -1,43 +1,14 @@
-"""Shared-funder clustering + serial-deployer reputation scoring.
+"""Supplied funding associations and uncalibrated heuristic scores.
 
-This is the layer the FUNDER-FINGERPRINT thesis needs on TOP of the per-launch
-tracer (ff.tracer): the tracer answers "who funded this ONE launch"; this module
-answers "which launches/deployers are the SAME OPERATOR, and how bad is that
-operator's track record" -- across many launches.
-
-Input  : a stream of wallet->funder edges (one per observed launch/deployer),
-          each carrying (deployer, funder, mint, block_time, lamports, outcome,
-          funder_is_cex). These are exactly what ff.tracer.build_fingerprint /
-          ff.backfill already produce per launch -- see `from_fingerprints` and
-          `from_backfill_json` adapters below.
-Output : (1) CLUSTER IDS -- distinct deployers that share a common funder (the
-          sticky money origin) are collapsed into one operator cluster via
-          union-find over the bipartite deployer<->funder graph; and
-          (2) a SERIAL-DEPLOYER REPUTATION SCORE in [0,1] per cluster -- a
-          bounded, monotone, *explainable* blend of how many throwaway deployers
-          one funder is spinning up, launch cadence, fan-out breadth, CEX origin,
-          and (only when outcomes are labeled) a Wilson LOWER-bound on the
-          observed rug-rate. It NEVER fabricates outcome labels: unlabeled
-          launches contribute zero rug-evidence, and the score degrades to a
-          pure structural risk score in that case (documented, honest).
-
-The whole module is PURE + stdlib-only (no deps), so it is fully unit-testable
-against a synthetic edge fixture with zero network. See tests/test_cluster.py
-and fixtures/cluster_edges.py.
-
-Why key on the funder and cluster on it
----------------------------------------
-A serial rugger rotates a fresh *deployer* wallet every launch (so per-token and
-per-deployer reputation is defeated by design), but funds them from a stickier
-origin branch. Collapsing by shared funder re-attaches the rotated deployers to
-one identity, which is what makes a *reputation* possible at all.
+Shared funding does not establish ownership. Labels are caller supplied.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Iterable, Optional
 
 LAMPORTS_PER_SOL = 1_000_000_000
@@ -115,16 +86,10 @@ class _UnionFind:
 
 
 def _cluster_id(members: Iterable[str]) -> str:
-    """Stable, order-independent cluster id derived from its member set.
+    """Hash unambiguous membership; changed membership intentionally changes IDs."""
+    key = json.dumps(sorted(set(members)), ensure_ascii=True, separators=(",", ":"))
+    return "CL2-" + hashlib.sha256(key.encode("utf-8")).hexdigest()
 
-    Deterministic across runs (sorted + hashed) so the same operator gets the
-    same CL-id every time -- important for a persistent reputation registry.
-    """
-    key = "|".join(sorted(members))
-    h = 0
-    for ch in key:               # tiny FNV-1a-ish rolling hash, stdlib-only
-        h = ((h ^ ord(ch)) * 0x01000193) & 0xFFFFFFFF
-    return f"CL-{h:08x}"
 
 
 # --------------------------------------------------------------------------
@@ -165,11 +130,7 @@ class Cluster:
 
     @property
     def deployers_per_funder(self) -> float:
-        """Core serial-deployer ratio: how many throwaway deployers per funder.
-
-        1.0 => one deployer per funder (organic / one-off). >1 => a funder is
-        spinning up multiple deployers (the serial-operator signature).
-        """
+        """Distinct supplied deployers per distinct supplied funder."""
         return self.n_deployers / self.n_funders if self.n_funders else 1.0
 
     def rug_rate(self) -> Optional[float]:
@@ -206,10 +167,10 @@ def _sat(x: float, k: float) -> float:
     return x / (x + k) if x > 0 else 0.0
 
 
-# Component weights for the serial-deployer reputation score. They sum to 1.0 so
-# the raw score is in [0,1]; each component is independently in [0,1]. Tuned to
-# be conservative (structure alone caps well below 1.0; only corroborated rug
-# evidence pushes a cluster into the high-risk band).
+# Heuristic weights, not fitted or calibrated against fraud outcomes.
+SCORER_VERSION = "2.0.0"
+HIGH_THRESHOLD = 0.50
+ELEVATED_THRESHOLD = 0.28
 _W = {
     "serial": 0.34,   # many deployers sharing one funder  (the headline signal)
     "cadence": 0.16,  # launch volume / repeat behavior
@@ -222,7 +183,7 @@ _W = {
 @dataclass
 class ReputationScore:
     cluster_id: str
-    score: float                     # 0..1, higher = worse (more serial-rugger-like)
+    score: float                     # 0..1, higher = stronger heuristic signals
     band: str                        # low / elevated / high
     components: dict = field(default_factory=dict)
     evidence: dict = field(default_factory=dict)
@@ -237,6 +198,18 @@ class ReputationScore:
         }
 
 
+def evidence_notes(c: Cluster) -> list[str]:
+    """State missing evidence without interpreting absence as safety."""
+    notes = ["Caller-supplied labels; uncalibrated heuristic. Low does not mean safe."]
+    if not c.labeled_launches:
+        notes.append("Insufficient outcome evidence: no labeled launches; structural score only.")
+    elif c.labeled_launches < c.n_launches:
+        notes.append("Incomplete outcome evidence: unlabeled launches excluded from rug rates.")
+    if not c.rug_launches:
+        notes.append("No positive rug labels supplied; this does not establish safety.")
+    return notes
+
+
 def score_cluster(c: Cluster) -> ReputationScore:
     """Compute the serial-deployer reputation score for one cluster.
 
@@ -244,11 +217,11 @@ def score_cluster(c: Cluster) -> ReputationScore:
     gets a risk read from its shape); the rug component only contributes when
     launches are labeled, via a Wilson lower bound so small-N does not overclaim.
     """
-    # --- serial: deployers-per-funder above the organic 1.0 baseline ---
+    # --- serial: deployers-per-funder above the one-deployer-per-funder baseline ---
     excess = max(0.0, c.deployers_per_funder - 1.0)
     serial = _sat(excess, 2.0)                    # 3 dep/funder -> ~0.5
 
-    # --- cadence: how many launches this operator has produced ---
+    # --- cadence: number of supplied launches ---
     cadence = _sat(max(0, c.n_launches - 1), 4.0)  # 5 launches -> 0.5
 
     # --- fanout: total distinct fresh children the funders fanned to ---
@@ -270,15 +243,11 @@ def score_cluster(c: Cluster) -> ReputationScore:
     raw = sum(_W[k] * comps[k] for k in _W)
     score = round(raw, 4)
 
-    # Bands calibrated so a fully-corroborated serial operator (many deployers
-    # per funder + labeled rugs) lands "high", while a structural-only cluster
-    # (shared funder but no rug labels) stays at most "elevated" -- it must never
-    # be flagged high on structure alone. Wilson-LB conservatism means even 4/4
-    # rugs contributes ~0.51, so `high` sits at 0.50, not an unreachable 0.60.
+    # High requires a positive caller-supplied rug label.
     band = "low"
-    if score >= 0.50:
+    if score >= HIGH_THRESHOLD and c.rug_launches > 0:
         band = "high"
-    elif score >= 0.28:
+    elif score >= ELEVATED_THRESHOLD:
         band = "elevated"
 
     return ReputationScore(
@@ -294,6 +263,8 @@ def score_cluster(c: Cluster) -> ReputationScore:
             "any_cex": c.any_cex,
             "labeled_launches": c.labeled_launches,
             "rug_launches": c.rug_launches,
+            "labelCoverage": round(c.labeled_launches / c.n_launches, 4) if c.n_launches else 0.0,
+            "notes": evidence_notes(c),
             "observed_rug_rate": c.rug_rate(),
             "rug_rate_wilson_lb": wlb,
             "rug_evidence": ("labeled" if c.labeled_launches
@@ -307,20 +278,14 @@ def score_cluster(c: Cluster) -> ReputationScore:
 # top-level: edges -> clusters -> scores
 # --------------------------------------------------------------------------
 def cluster_by_funder(edges: Iterable[DeployEdge]) -> list[Cluster]:
-    """Collapse edges into shared-funder operator clusters (union-find).
+    """Group funding associations, excluding globally flagged exchanges.
 
-    Known exchange funders never connect deployers; any CEX flag excludes that
-    funder across the entire batch. Groups are associations, not identity proof.
-    Two launches otherwise land in the same cluster iff their graphs are
-    connected -- i.e. they share a funder, OR are linked through a chain of
-    shared funders (funder A funds deployers X,Y; a later edge funds Y from
-    funder B => A,B,X,Y are one operator). Deployer and funder namespaces are
-    kept disjoint (prefixed) so an address that is coincidentally both never
-    cross-links two operators by string collision alone.
+    Reconciled edges are copies; caller input is unchanged. Groups are not identities.
     """
     uf = _UnionFind()
     edges = list(edges)
     cex_funders = {e.funder for e in edges if e.funder_is_cex}
+    edges = [replace(e, funder_is_cex=e.funder in cex_funders) for e in edges]
     for e in edges:
         d, f = f"D:{e.deployer}", f"F:{e.funder}"
         uf.add(d)

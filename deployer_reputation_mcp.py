@@ -8,7 +8,7 @@ from pathlib import Path
 FF_ROOT = Path(__file__).resolve().parent   # ff/ ships in this repo
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "deployer-reputation"
-SERVER_VERSION = "1.1.0"
+SERVER_VERSION = "2.0.0"
 
 from validation import input_schema, parse_edges, MAX_BODY_BYTES
 
@@ -53,7 +53,9 @@ def tool_deployer_reputation(args: dict) -> dict:
         "clusters": out,
         "n_clusters": len(out),
         "n_edges": len(args.get("edges", [])),
-        "model": "ff.cluster serial-deployer reputation (Wilson-LB blended, weights sum to 1.0)",
+        "model": "ff.cluster supplied-edge heuristic",
+        "scorerVersion": ff.SCORER_VERSION,
+        "clusterIdVersion": "CL2-SHA256",
         "caveat": (
             "Supplied-edge heuristic only: scores are not calibrated probabilities. "
             "No chain lookup or verified ownership attribution. Labels are caller supplied. "
@@ -72,6 +74,7 @@ def tool_cluster_launches(args: dict) -> dict:
             for c in clusters
         ],
         "n_clusters": len(clusters),
+        "clusterIdVersion": "CL2-SHA256",
     }
 
 

@@ -1,0 +1,8 @@
+{
+  "operation": "score",
+  "edges": [
+    {"deployer": "deployer-1", "funder": "funder-1", "mint": "mint-1", "outcome": "rugged"},
+    {"deployer": "deployer-2", "funder": "funder-1", "mint": "mint-2", "outcome": "rugged"},
+    {"deployer": "deployer-3", "funder": "exchange-hot-wallet", "mint": "mint-3", "outcome": "alive", "funder_is_cex": true}
+  ]
+}
