@@ -13,6 +13,12 @@ investment recommendations. **Low does not mean safe.**
 - [Source and reusable examples](https://github.com/ijgc1020/deployer-reputation-mcp): local scoring and MCP stdio use Python's standard library, without an Apify account or charge.
 - [Tender CSV/JSON audit workflows](workflows/tender-normalizer/README.md): separate procurement companion with stage checks and an offline SHA-256 receipt verifier. It does not use Solana scoring; integrations remain schema candidates until tested with real upstream data.
 
+## Check workflow fit before running
+
+[Choose the right tool and request a workflow-fit check](WORKFLOW-FIT.md).
+Use public documentation or synthetic field names only; GitHub issues are public.
+No credentials, private datasets, or billing receipts. No purchase required to ask.
+
 ## First result in five minutes
 
 ### Option A: Apify, no local installation
