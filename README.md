@@ -11,6 +11,7 @@ investment recommendations. **Low does not mean safe.**
 
 - [Run on Apify](https://apify.com/ultrathink-labs/deployer-reputation-heuristic): $0.005 per delivered analysis batch, up to 1,000 edges.
 - [Source and reusable examples](https://github.com/ijgc1020/deployer-reputation-mcp): local scoring and MCP stdio use Python's standard library, without an Apify account or charge.
+- [Tender CSV/JSON audit workflows](workflows/tender-normalizer/README.md): separate procurement companion with stage checks and an offline SHA-256 receipt verifier. It does not use Solana scoring; integrations remain schema candidates until tested with real upstream data.
 
 ## First result in five minutes
 

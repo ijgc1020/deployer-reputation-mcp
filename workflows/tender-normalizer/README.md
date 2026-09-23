@@ -1,12 +1,12 @@
 # Tender Feed Normalizer workflow inputs
 
-Reusable input JSON for Ultrathink Labs' [Tender Feed Normalizer](https://apify.com/ultrathink-labs/tender-feed-normalizer). This directory contains buyer inputs, **not the normalizer's source code**. The parent repository's reputation scorer is a separate product.
+Reusable inputs and checksum verifier for Ultrathink Labs' [Tender Feed Normalizer](https://apify.com/ultrathink-labs/tender-feed-normalizer). This directory contains buyer workflows, **not the normalizer's source code**. The parent repository's reputation scorer is a separate product.
 
 ## Start with one small, auditable result
 
 1. Open `tender_normalizer_records.json`, choose **Raw**, and copy the complete JSON.
 2. Open the Actor's JSON input and replace everything, including its prefill.
-3. Keep default 256 MB; set Maximum charge per run to $0.01 in run options.
+3. Use the validated default 128 MB; set Maximum charge per run to $0.01 in run options. Large individual fields may need more memory even below the row cap.
 4. Start only after checking current Store prices. The fictional input yields one clean USD row and one EUR rejection in `REPORT`. At the published $0.001/clean row plus $0.00005/start, expected event charge is $0.00105—not the $0.01 ceiling.
 5. Inspect the default dataset and `REPORT`. Use `tender_normalizer_retry_eur.json` to process only the rejected fictional EUR notice in a second run. That run has its own charge.
 
@@ -30,3 +30,21 @@ The SAM.gov field map is based on [Scrape Sage's published schema](https://apify
 Import clean rows into your destination, route `REPORT.issues` to review, and keep source namespace + notice ID for your own cross-run deduplication/amendment policy. Normalizer deduplication is per run only. Repeated input can produce repeated charges. The Actor fetches at most the first 10,000 dataset rows; partition larger feeds before handoff.
 
 No subscription, schedule, upstream scraping, or price change is created by these files. Set a separate cap for every upstream/downstream Actor. Follow the [Store README](https://apify.com/ultrathink-labs/tender-feed-normalizer) for exact parsing, errors, provenance, billing and privacy limits.
+
+## Stage-safe procurement audit companion
+
+`tender_normalizer_stage_sample.json` is a complete fictional tender/award example: only the supplied tender-stage row is delivered; the award remains in REPORT. `tender_normalizer_ciel_integration.json` is a **published-schema candidate**, not a verified live Ciel Labs integration. The upstream already harmonizes/deduplicates; use an extra audit step only when common cross-source error/checksum receipts add value.
+
+`stageField` names an exact top-level source column. Only the string `tender` passes (case/outer whitespace ignored); missing and other values receive separate error codes. Labels do not prove source truth. Contract `endDate` is no longer an implicit deadline alias. Explicitly map it only when the source really means submission deadline.
+
+### Verify an exported receipt offline
+
+Download the complete default dataset as JSON to `dataset.json` and the `AUDIT` key-value record to `audit.json`, then run:
+
+```sh
+python verify_audit.py --audit audit.json --dataset dataset.json
+```
+
+Optional `--input-records records.json` checks the selected parsed row array too (not the full Actor input wrapper or original CSV bytes). No packages, credentials or network calls required. All checks must be true; exit 1 means mismatch. Hashes preserve object/array order and normalize integral floats to integers, matching Apify's numeric storage round trip. Keep downloaded JSON key order intact. A mismatch can indicate reformatting, changed serialization or changed content; it is not automatically fraud. Checksums certify consistency, **never source authenticity or procurement eligibility**.
+
+Run and schema limits remain in the Store README. Prices unchanged. No customer, revenue, or universal upstream-compatibility claim.

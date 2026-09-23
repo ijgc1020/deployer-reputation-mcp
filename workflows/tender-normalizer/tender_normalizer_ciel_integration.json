@@ -1,0 +1,12 @@
+{
+  "datasetId": "{{resource.defaultDatasetId}}",
+  "stageField": "stage",
+  "fieldMap": {
+    "title": "title",
+    "deadline": "deadline",
+    "buyerName": "buyer",
+    "valueAmount": "value",
+    "valueCurrency": "currency",
+    "ocid": "reference"
+  }
+}

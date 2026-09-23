@@ -1,0 +1,7 @@
+{
+  "stageField": "stage",
+  "records": [
+    {"title": "Fictional open tender", "deadline": "2027-12-31", "stage": "tender", "reference": "EX-TENDER"},
+    {"title": "Fictional awarded contract", "endDate": "2027-12-31", "stage": "award", "reference": "EX-AWARD"}
+  ]
+}
