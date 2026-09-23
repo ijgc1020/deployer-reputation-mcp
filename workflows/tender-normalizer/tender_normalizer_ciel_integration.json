@@ -1,6 +1,7 @@
 {
   "datasetId": "{{resource.defaultDatasetId}}",
   "stageField": "stage",
+  "currency": "GBP",
   "fieldMap": {
     "title": "title",
     "deadline": "deadline",
