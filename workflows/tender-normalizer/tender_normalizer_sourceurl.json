@@ -1,0 +1,5 @@
+{
+  "sourceUrl": "https://example.org/feeds/tenders.csv",
+  "currency": "USD",
+  "fieldMap": {"Notice Title": "title", "Closes": "deadline", "Authority": "buyer", "Notice ID": "reference", "Estimate": "value"}
+}

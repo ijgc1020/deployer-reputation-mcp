@@ -1,0 +1,8 @@
+{
+  "records": [
+    {"title": "Example tender A (fictional)", "deadline": "2027-12-31", "buyer": "Example buyer", "reference": "EX-A", "value": "USD 12000"},
+    {"title": "Example tender B (fictional)", "deadline": "20270120", "buyer": "Other buyer", "reference": "EX-B", "value": 5000, "currency": "EUR"}
+  ],
+  "currency": "USD",
+  "fieldMap": {}
+}

@@ -12,7 +12,7 @@
       },
       "title": "Launch edges",
       "editor": "json",
-      "description": "One record per distinct mint; deployer, funder and mint are required. Runtime validates strict field types, limits and Unicode. Sample uses fictional opaque identifiers. Required unless a dataset reference is supplied.",
+      "description": "Supply 1-1000 caller-enriched launch edges, exactly one per distinct mint. Each object requires deployer, funder and mint: the funder seeded the deployer, which launched the mint. Identifiers are nonempty strings, at most 128 characters, without whitespace/control characters; they are not verified on-chain. Outcome defaults to unknown, not safe. Token-only scanner rows are insufficient. This fictional prefill is not real chain data. Remove edges entirely when using a dataset reference: non-null inline edges take precedence, even if invalid or empty.",
       "prefill": [
         {
           "deployer": "ExampleDeployer",
@@ -31,18 +31,18 @@
         "cluster"
       ],
       "default": "score",
-      "description": "Choose heuristic scoring or association grouping."
+      "description": "score returns uncalibrated heuristic scores, bands, components and label-coverage evidence; cluster returns association membership without scores. Neither predicts fraud or verifies ownership. Both publish one result object per batch to the default dataset, regardless of cluster count."
     },
     "datasetId": {
       "title": "Dataset ID (integration)",
       "type": "string",
-      "description": "Optional. Apify dataset ID whose items are the launch edges - supplied automatically when this Actor runs as an integration target (payload.resource.defaultDatasetId).",
+      "description": "Optional Apify dataset ID, not a URL: 10-32 alphanumeric characters. Its 1-1000 items must already be individual deployer/funder/mint edge objects, not token-scanner rows or edges wrappers. No mapping, enrichment or automatic batch splitting. Remove the inline edges prefill. An explicit datasetId wins over payload.resource.defaultDatasetId; dataset access permission is still required.",
       "editor": "textfield"
     },
     "payload": {
       "title": "Integration payload (implicit)",
       "type": "object",
-      "description": "Attached automatically by the platform when another Actor triggers this one as an integration; resource.defaultDatasetId is read for edges. Do not set manually.",
+      "description": "Apify adds this object on an Actor-to-Actor integration trigger; resource.defaultDatasetId selects that run's dataset only when inline edges and an explicit datasetId are absent. Use run succeeded on an upstream enrichment Actor. The referenced items must already satisfy the edge contract. Do not set manually.",
       "editor": "hidden"
     }
   },

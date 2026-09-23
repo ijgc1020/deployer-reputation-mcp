@@ -67,10 +67,20 @@ def input_schema():
                  funder_is_cex={'type': 'boolean'},
                  lamports={'type': 'integer', 'minimum': 0, 'maximum': MAX_LAMPORTS},
                  block_time={'type': ['integer', 'null'], 'minimum': 0, 'maximum': MAX_TIMESTAMP})
+    descriptions = {
+        'deployer': 'Required caller-resolved launch deployer. Opaque identifier, not a verified address or token holder.',
+        'funder': 'Required caller-resolved wallet that seeded this deployer before the launch. Never substitute a pool or unknown placeholder.',
+        'mint': 'Required launched token identifier, unique within this batch. One edge per mint; not a trading-pair address.',
+        'outcome': 'Caller-supplied label; defaults to unknown. rugged maps to rug. Unknown is missing evidence, not safe; labels are not verified.',
+        'funder_is_cex': 'Strict boolean, default false. Mark known exchange/infrastructure funders; any true flag prevents that funder joining distinct deployers across this batch.',
+        'lamports': 'Nonnegative integer funding amount in lamports, not SOL or a string; defaults to 0. Currently does not affect scoring.',
+        'block_time': 'Nonnegative Unix timestamp in seconds or null, not ISO text or milliseconds. Currently does not affect scoring.',
+    }
     for name, spec in props.items():
         spec['title'] = name.replace('_', ' ').title()
-        spec['description'] = 'Caller-supplied ' + name.replace('_', ' ') + '.'
+        spec['description'] = descriptions[name]
     return {'type': 'object', 'additionalProperties': False, 'required': ['edges'],
             'properties': {'edges': {'type': 'array', 'minItems': 1, 'maxItems': MAX_EDGES,
+                'description': '1-1000 caller-enriched launches with distinct mints. Required per edge: deployer, funder, mint. No RPC, wallet lookup or label verification; token-only rows are insufficient. Calls are stateless.',
                 'items': {'type': 'object', 'additionalProperties': False,
                           'required': ['deployer', 'funder', 'mint'], 'properties': props}}}}

@@ -1,0 +1,9 @@
+{
+  "operation": "score",
+  "edges": [
+    {"deployer": "DemoDeployerA", "funder": "DemoSharedFunder", "mint": "DemoMintA", "outcome": "rugged"},
+    {"deployer": "DemoDeployerB", "funder": "DemoSharedFunder", "mint": "DemoMintB", "outcome": "unknown"},
+    {"deployer": "DemoDeployerC", "funder": "DemoOtherFunder", "mint": "DemoMintC", "outcome": "unknown"},
+    {"deployer": "DemoDeployerA", "funder": "DemoSharedFunder", "mint": "DemoMintD", "outcome": "unknown"}
+  ]
+}

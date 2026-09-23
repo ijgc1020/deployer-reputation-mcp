@@ -1,3 +1,14 @@
+# Buyer onboarding and reusable workflows — 2026-09-22 mission
+
+- Added exact fictional first-run and refreshed-snapshot inputs; documented required enrichment, unknown outcomes, strict schema, stateless runs, batch limits and honest per-batch economics.
+- Added executable local MCP handshake/discovery/score/group/error/recovery JSONL. Input-schema descriptions now explain data responsibility; validation rules, numeric scoring and billing behavior unchanged.
+- Added public tender-normalizer input library under workflows/tender-normalizer. It contains JSON inputs, not private normalizer source; named upstream mapping remains a schema candidate, not a verified upstream run.
+- Completed the pre-existing MIT license's truncated warranty/liability paragraph from the standard SPDX MIT text; permission grant unchanged.
+- Main executed 29 reputation regressions and verify_all three times, plus real local stdio and first/refresh/missing-edge smoke paths. These are software checks using fictional fixtures, not predictive validity, paid demand or customer revenue.
+- Deployment evidence belongs to the actual Apify run/build records and GitHub release, not an embedded stale build-number claim.
+
+## Historical scorer audit
+
 # Local reputation scorer audit fixes
 
 Status: independent QA PASSED (fleet audit 2026-09-21 handoff report); DEPLOYED as build 1.1.6 on 2026-09-21 with cloud validation.

@@ -1,0 +1,8 @@
+{
+  "datasetId": "{{resource.defaultDatasetId}}",
+  "fieldMap": {
+    "responseDeadline": "deadline",
+    "office": "buyer",
+    "noticeId": "reference"
+  }
+}
