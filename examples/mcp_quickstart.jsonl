@@ -1,4 +1,4 @@
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"fictional-onboarding-example","version":"1.0.0"}}}
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"fictional-onboarding-example","version":"1.0.0"}}}
 {"jsonrpc":"2.0","method":"notifications/initialized"}
 {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"deployer_reputation","arguments":{"edges":[{"deployer":"DemoDeployerA","funder":"DemoSharedFunder","mint":"DemoMintA","outcome":"unknown"},{"deployer":"DemoDeployerB","funder":"DemoSharedFunder","mint":"DemoMintB","outcome":"unknown"},{"deployer":"DemoDeployerC","funder":"DemoOtherFunder","mint":"DemoMintC","outcome":"unknown"}]}}}

@@ -261,8 +261,11 @@ The script resolves its bundled scorer relative to itself, not the client's work
 
 Tools: `deployer_reputation` and `cluster_launches`. Both accept only `{"edges": [...]}`;
 Actor-only `operation`, `datasetId`, and `payload` are not local MCP arguments.
-The server advertises protocol `2024-11-05`, with one newline-delimited JSON-RPC object per line
-and a 512000-byte line limit. It does not implement JSON-RPC batch arrays or HTTP/SSE transport.
+The server negotiates `2025-11-25` or `2025-06-18` for structured results, and still supports
+`2024-11-05` with text-only results. An unsupported requested revision receives `2025-11-25`;
+a client that does not support that revision must disconnect. Transport remains one newline-delimited
+JSON-RPC object per line, limited to 512000 bytes including envelope and newline. JSON-RPC batch
+arrays and HTTP/SSE transport are not implemented.
 
 ### Executable handshake and calls
 
@@ -285,16 +288,25 @@ Expected replies:
 
 | Request ID | Result |
 | --- | --- |
-| 1 | Initialization reports server `deployer-reputation`, version `2.0.0`, protocol `2024-11-05`. |
-| 2 | `tools/list` exposes the two named tools and their input schemas. |
+| 1 | Initialization reports server `deployer-reputation`, version `2.1.0`, protocol `2025-11-25`. Scoring policy remains `2.0.0`. |
+| 2 | `tools/list` exposes two tools with input schemas, complete output schemas, and read-only/local-computation annotations. |
 | 3 | Successful score call: three edges, two clusters, no outcome labels. |
 | 4 | Successful grouping call: two clusters, no scores. |
 | 5 | Intentional negative control: mint-only input returns `result.isError: true`, not a fabricated deployer/funder or score. |
 | 6 | Ping returns an empty result object, demonstrating recovery after rejected input. |
 
-Notifications produce no reply. Successful tool calls use `result.isError: false` and put the JSON
-payload **inside the string** `result.content[0].text`; parse that string as JSON to access `clusters`.
-For request 5, that text is an error message, not a JSON result. Malformed requests do not stop the stream.
+Notifications produce no reply. Successful calls have `result.isError: false`; the JSON object is in
+`result.structuredContent` and is also serialized in `result.content[0].text`. The output schema
+describes the **object**, not a JSON-encoded string. Grouping-only output has no score fields.
+For request 5, `isError` is true and both representations contain `{"error": "<input rejection reason>"}`;
+no partial analysis is returned. The schemas include this error alternative and nullable outcome rates.
+Unknown tools and malformed protocol envelopes instead return JSON-RPC `error` objects.
+
+A client explicitly requesting `2024-11-05` retains the original interface: no `outputSchema` or
+annotations in discovery, JSON-encoded success in `content[0].text`, plain-text input errors, and no
+`structuredContent`. Malformed requests do not stop either version's stream. Invalid input must be
+corrected before retrying; duplicate mints reject the batch. JSON Schema cannot express unique values
+of only the `mint` property, or distinguish integer tokens from `1.0`/`1e0`; runtime validation does.
 
 Apify's [hosted MCP configuration](https://apify.com/ultrathink-labs/deployer-reputation-heuristic.md)
 is a separate route to the cloud Actor, with OAuth sign-in and normal Actor pricing. Local stdio
@@ -321,7 +333,7 @@ Deployment status is external to this package. Never submit credentials in edge 
 ## Offline verification for maintainers
 
 ```sh
-python -m pip install -r requirements.txt httpx
+python -m pip install -r requirements.txt httpx jsonschema==4.26.0
 python -m unittest discover -q
 python scripts/demo_reputation.py
 python scripts/verify_all.py
@@ -329,7 +341,9 @@ python scripts/verify_all.py
 
 The demo covers fictional labeled launches, independent deployers, and shared-exchange separation.
 Regression tests cover input limits, duplicate mints, exchange separation, stdio recovery,
+negotiated legacy/structured results, nullable output/error schemas, Unicode identifier boundaries,
 authentication/body limits, dataset handoff, and dataset-only Actor delivery.
+`jsonschema` is a test-only dependency; local scoring and stdio still need only the standard library.
 These checks establish software behavior, not predictive validity or paid demand.
 
 ## Scorer 2.0.0 ID migration

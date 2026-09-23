@@ -6,15 +6,61 @@ import sys
 from pathlib import Path
 
 FF_ROOT = Path(__file__).resolve().parent   # ff/ ships in this repo
-PROTOCOL_VERSION = "2024-11-05"
+PROTOCOL_VERSION = "2025-11-25"
+LEGACY_PROTOCOL_VERSION = "2024-11-05"
+SUPPORTED_PROTOCOL_VERSIONS = (LEGACY_PROTOCOL_VERSION, "2025-06-18", PROTOCOL_VERSION)
 SERVER_NAME = "deployer-reputation"
-SERVER_VERSION = "2.0.0"
+SERVER_VERSION = "2.1.0"
 
-from validation import input_schema, parse_edges, MAX_BODY_BYTES
+from validation import (input_schema, parse_edges, MAX_BODY_BYTES,
+                        reputation_output_schema, cluster_output_schema)
 
 TOOLS = [
-    {"name": "deployer_reputation", "description": "Explainable heuristic score of supplied launch edges; not a probability or verified operator identity.", "inputSchema": input_schema()},
-    {"name": "cluster_launches", "description": "Group supplied launches by non-exchange funding associations; not proof of common ownership.", "inputSchema": input_schema()},
+    {
+        "name": "deployer_reputation",
+        "description": (
+            "Score funding-association groups in supplied Solana launch records with explainable "
+            "0-1 heuristic components and label-coverage evidence. Use after your pipeline resolves "
+            "deployer, pre-launch funder and mint; choose cluster_launches for membership only. "
+            "Not for wallet/token lookup, prediction, ownership attribution or safety decisions; "
+            "scores are not probabilities and low does not mean safe.\n"
+            "Supply 1-1000 distinct-mint edges. Keep connected groups together: splitting batches "
+            "changes results. A funder_is_cex flag anywhere prevents that funder joining distinct "
+            "deployers; it does not separate the same deployer's launches. lamports and block_time "
+            "are validated but do not affect scores; cadence measures launch count, not time.\n"
+            "Stateless local computation: no network/RPC, label verification, storage writes, "
+            "credentials or external side effects. Each full stdio request line is limited to "
+            "512000 bytes. Returns score-sorted clusters, membership, components, evidence, counts "
+            "and versions. Check labelCoverage and notes: rug-rate evidence is null without labels, "
+            "not zero. Invalid input rejects the whole batch with isError=true; correct it and retry."
+        ),
+        "inputSchema": input_schema(),
+        "outputSchema": reputation_output_schema(),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
+    {
+        "name": "cluster_launches",
+        "description": (
+            "Group supplied launches by transitive non-exchange funding associations. Use when "
+            "you need membership and launch counts only; choose deployer_reputation for heuristic "
+            "scores and label evidence. Requires 1-1000 distinct-mint edges with caller-resolved "
+            "deployer, pre-launch funder and mint; token-only rows are insufficient. A funder_is_cex "
+            "flag anywhere prevents that funder joining distinct deployers, while same-deployer "
+            "launches remain grouped. outcome, lamports and block_time are validated but do not "
+            "affect grouping.\n"
+            "Stateless local computation, no network/RPC, label verification, credentials, storage "
+            "writes or external side effects. Returns cluster IDs, sorted member identifiers, "
+            "launch counts, group count and ID version; no scores or safety/ownership claims. "
+            "Keep connected groups in one batch; separate calls are never joined. Full stdio "
+            "request lines are limited to 512000 bytes. Invalid input rejects the whole batch "
+            "with isError=true; correct it and retry."
+        ),
+        "inputSchema": input_schema(),
+        "outputSchema": cluster_output_schema(),
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
+    },
 ]
 
 
@@ -92,20 +138,25 @@ def _reply(msg_id, result=None, error=None) -> None:
     sys.stdout.flush()
 
 
-def _tool_call(mid, params):
+def _tool_call(mid, params, protocol_version):
     name = params.get("name")
     if not isinstance(name, str) or name not in HANDLERS:
         _reply(mid, error={"code": -32602, "message": "Unknown tool"})
         return
     try:
         payload = HANDLERS[name](params.get("arguments"))
-        _reply(mid, {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False})
+        text, is_error = json.dumps(payload), False
     except ValueError as exc:
-        _reply(mid, {"content": [{"type": "text", "text": str(exc)}], "isError": True})
+        payload, is_error = {"error": str(exc)}, True
+        text = str(exc) if protocol_version == LEGACY_PROTOCOL_VERSION else json.dumps(payload)
+    result = {"content": [{"type": "text", "text": text}], "isError": is_error}
+    if protocol_version != LEGACY_PROTOCOL_VERSION:
+        result["structuredContent"] = payload
+    _reply(mid, result)
 
 
-def handle(msg):
-    """Handle one JSON-RPC object; arrays and invalid envelopes never kill stdio."""
+def handle(msg, protocol_version=LEGACY_PROTOCOL_VERSION):
+    """Reply to one request, returning a newly negotiated version only on initialize."""
     if not isinstance(msg, dict):
         _reply(None, error={"code": -32600, "message": "Expected JSON-RPC object"})
         return
@@ -120,13 +171,19 @@ def handle(msg):
         _reply(mid, error={"code": -32602, "message": "params must be an object"})
         return
     if method == "initialize":
-        _reply(mid, {"protocolVersion": PROTOCOL_VERSION,
+        requested = params.get("protocolVersion")
+        negotiated = requested if requested in SUPPORTED_PROTOCOL_VERSIONS else PROTOCOL_VERSION
+        _reply(mid, {"protocolVersion": negotiated,
                      "capabilities": {"tools": {"listChanged": False}},
                      "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION}})
+        return negotiated
     elif method == "tools/list":
-        _reply(mid, {"tools": TOOLS})
+        tools = TOOLS if protocol_version != LEGACY_PROTOCOL_VERSION else [
+            {key: tool[key] for key in ("name", "description", "inputSchema")} for tool in TOOLS
+        ]
+        _reply(mid, {"tools": tools})
     elif method == "tools/call":
-        _tool_call(mid, params)
+        _tool_call(mid, params, protocol_version)
     elif method == "ping":
         _reply(mid, {})
     else:
@@ -136,6 +193,7 @@ def handle(msg):
 def serve():
     """Consume bounded newline-delimited JSON, recovering after malformed input."""
     stream = sys.stdin.buffer
+    protocol_version = LEGACY_PROTOCOL_VERSION
     while True:
         line = stream.readline(MAX_BODY_BYTES + 1)
         if not line:
@@ -149,7 +207,7 @@ def serve():
             continue
         try:
             msg = json.loads(line)
-            handle(msg)
+            protocol_version = handle(msg, protocol_version) or protocol_version
         except (ValueError, UnicodeError, RecursionError):
             _reply(None, error={"code": -32700, "message": "Invalid JSON"})
 

@@ -10,6 +10,7 @@ Maintained by Ultrathink Labs, the publisher of both linked Actors. Start with t
 
 - [Open the tender Actor](https://apify.com/ultrathink-labs/tender-feed-normalizer).
 - [Use the fictional first-run and selective-retry inputs](workflows/tender-normalizer/README.md).
+- For nested OCDS 1.1 releases, select `inputFormat: ocds` and use the [bounded release workflow](workflows/tender-normalizer/README.md#bounded-ocds-release-workflow). It reads fixed core fields and actual `tender.tenderPeriod.endDate`, requires tender-family tags plus active tender status, and preserves raw releases. No record-package merging, lot expansion, XML or full OCDS validation.
 - Save the delivered dataset plus REPORT and AUDIT records. SHA-256 checks verify consistency of the selected parsed input, effective settings, and delivered output—not source truth, completeness, or eligibility.
 - Current listed event arithmetic: $0.001 per delivered clean row + $0.00005 start at the default 128 MB. One start and 100 delivered clean rows = $0.10005. Rejected rows are not clean-row events. Check current Store prices and a suitable maximum charge before running. Upstream collection is separate.
 

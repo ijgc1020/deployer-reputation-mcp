@@ -1,0 +1,38 @@
+{
+  "inputFormat": "ocds",
+  "records": [
+    {
+      "ocid": "ocds-fictional-library",
+      "id": "notice-1",
+      "date": "2026-09-23T00:00:00Z",
+      "tag": ["tender"],
+      "initiationType": "tender",
+      "buyer": {"id": "example-town", "name": "Example Town (fictional)"},
+      "tender": {
+        "id": "library-maintenance",
+        "title": "Library maintenance (fictional)",
+        "status": "active",
+        "tenderPeriod": {"endDate": "2099-01-15T12:00:00Z"},
+        "contractPeriod": {"endDate": "2099-12-31T23:59:59Z"},
+        "value": {"amount": 12000.5, "currency": "GBP"}
+      }
+    },
+    {
+      "ocid": "ocds-fictional-award",
+      "id": "award-1",
+      "date": "2026-09-23T00:00:00Z",
+      "tag": ["award"],
+      "initiationType": "tender",
+      "buyer": {"id": "example-town", "name": "Example Town (fictional)"},
+      "tender": {
+        "id": "awarded-contract",
+        "title": "Awarded contract (fictional)",
+        "status": "complete",
+        "contractPeriod": {"endDate": "2099-12-31T23:59:59Z"}
+      },
+      "awards": [{"id": "award-1", "contractPeriod": {"endDate": "2099-12-31T23:59:59Z"}}],
+      "contracts": [{"id": "contract-1", "period": {"endDate": "2099-12-31T23:59:59Z"}}]
+    }
+  ],
+  "currency": "GBP"
+}
